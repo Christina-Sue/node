@@ -184,10 +184,14 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
     return InternalizeUtf8String(CStrVector(str));
   }
 
-  template <typename Char>
-  EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
-  Handle<String> InternalizeString(const Vector<const Char>& str,
+  Handle<String> InternalizeString(Vector<const uint8_t> str,
                                    bool convert_encoding = false);
+  Handle<String> InternalizeString(Vector<const uint16_t> str,
+                                   bool convert_encoding = false);
+  Handle<String> InternalizeString(Vector<const char> str,
+                                   bool convert_encoding = false) {
+    return InternalizeString(Vector<const uint8_t>::cast(str));
+  }
 
   template <typename SeqString>
   Handle<String> InternalizeString(Handle<SeqString>, int from, int length,
@@ -230,7 +234,7 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
       const char (&str)[N],
       AllocationType allocation = AllocationType::kYoung) {
     DCHECK_EQ(N, strlen(str) + 1);
-    return NewStringFromOneByte(StaticCharVector(str), allocation)
+    return NewStringFromOneByte(StaticOneByteVector(str), allocation)
         .ToHandleChecked();
   }
 
@@ -370,8 +374,8 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
   Handle<CallbackTask> NewCallbackTask(Handle<Foreign> callback,
                                        Handle<Foreign> data);
   Handle<PromiseResolveThenableJobTask> NewPromiseResolveThenableJobTask(
-      Handle<JSPromise> promise_to_resolve, Handle<JSReceiver> then,
-      Handle<JSReceiver> thenable, Handle<Context> context);
+      Handle<JSPromise> promise_to_resolve, Handle<JSReceiver> thenable,
+      Handle<JSReceiver> then, Handle<Context> context);
 
   // Foreign objects are pretenured when allocated by the bootstrapper.
   Handle<Foreign> NewForeign(Address addr);
@@ -541,6 +545,8 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
   Handle<JSGeneratorObject> NewJSGeneratorObject(Handle<JSFunction> function);
 
   Handle<JSModuleNamespace> NewJSModuleNamespace();
+
+  Handle<WasmStruct> NewWasmStruct(Handle<Map> map);
 
   Handle<SourceTextModule> NewSourceTextModule(Handle<SharedFunctionInfo> code);
   Handle<SyntheticModule> NewSyntheticModule(
@@ -734,6 +740,8 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
 
   Handle<DebugInfo> NewDebugInfo(Handle<SharedFunctionInfo> shared);
 
+  Handle<WasmValue> NewWasmValue(int32_t value_type, Handle<Object> ref);
+
   // Return a map for given number of properties using the map cache in the
   // native context.
   Handle<Map> ObjectLiteralMapFromCache(Handle<NativeContext> native_context,
@@ -801,6 +809,11 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
       return *this;
     }
 
+    CodeBuilder& set_inlined_bytecode_size(uint32_t size) {
+      inlined_bytecode_size_ = size;
+      return *this;
+    }
+
     CodeBuilder& set_source_position_table(Handle<ByteArray> table) {
       DCHECK(!table.is_null());
       source_position_table_ = table;
@@ -852,6 +865,7 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
 
     MaybeHandle<Object> self_reference_;
     int32_t builtin_index_ = Builtins::kNoBuiltinId;
+    uint32_t inlined_bytecode_size_ = 0;
     int32_t kind_specific_flags_ = 0;
     Handle<ByteArray> source_position_table_;
     Handle<DeoptimizationData> deoptimization_data_ =
